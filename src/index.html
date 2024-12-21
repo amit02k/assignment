@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+        }
+        form {
+            max-width: 400px;
+            margin: auto;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            margin-top: 15px;
+            padding: 10px 15px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #noteList {
+            max-width: 600px;
+            margin: 50px auto;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        #noteList th, #noteList td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        #noteList th {
+            background-color: #f4f4f4;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Note Management</h1>
+    <form id="createNoteForm">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" placeholder="Enter title" required>
+
+        <label for="content">Content</label>
+        <textarea id="content" name="content" placeholder="Enter content" required></textarea>
+
+        <label for="tags">Tags (comma-separated)</label>
+        <input type="text" id="tags" name="tags" placeholder="Enter tags" required>
+
+        <label for="owner">Owner</label>
+        <select id="owner" name="owner" required>
+            <option value="">Select an owner</option>
+        </select>
+
+        <button type="submit">Create Note</button>
+    </form>
+
+    <h2>All Notes</h2>
+    <table id="noteList">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Content</th>
+                <th>Tags</th>
+                <th>Owner</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Note data will be populated here -->
+        </tbody>
+    </table>
+
+    <h2>Search Notes</h2>
+    <form id="searchNoteForm">
+        <label for="searchTags">Tags</label>
+        <input type="text" id="searchTags" name="searchTags" placeholder="Enter tags">
+
+        <label for="searchTitle">Title</label>
+        <input type="text" id="searchTitle" name="searchTitle" placeholder="Enter title">
+
+        <button type="submit">Search</button>
+    </form>
+
+    <script>
+        async function fetchUsers() {
+            try {
+                const response = await fetch('http://localhost:3000/api/users');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch users');
+                }
+
+                const users = await response.json();
+                const ownerSelect = document.getElementById('owner');
+
+                // Populate the owner dropdown
+                users.data.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id; // Assuming user has an 'id' field
+                    option.textContent = user.name; // Assuming user has a 'name' field
+                    ownerSelect.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error('Error fetching users:', error);
+            }
+        }
+
+        async function fetchNotes() {
+            try {
+                const response = await fetch('http://localhost:3000/api/notes');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch notes');
+                }
+
+                const notes = await response.json();
+                const noteList = document.querySelector('#noteList tbody');
+
+                // Clear existing note data
+                noteList.innerHTML = '';
+
+                // Populate table with note data
+                notes.data.forEach(note => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${note.title}</td>
+                        <td>${note.content}</td>
+                        <td>${note.tags.join(', ')}</td>
+                        <td>${note.owner}</td>
+                    `;
+                    noteList.appendChild(row);
+                });
+
+            } catch (error) {
+                console.error('Error fetching notes:', error);
+            }
+        }
+
+        document.getElementById('createNoteForm').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            // Get form data
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
+            const tags = document.getElementById('tags').value.split(',').map(tag => tag.trim());
+            const owner = document.getElementById('owner').value;
+            console.log('owner --->',owner)
+
+            try {
+                // Call the API
+                const response = await fetch('http://localhost:3000/api/notes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ title, content, tags, owner })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create note');
+                }
+
+                const result = await response.json();
+                alert('Note created successfully: ' + result.msg);
+
+                // Refresh the note list
+                fetchNotes();
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error creating note: ' + error.message);
+            }
+        });
+
+        document.getElementById('searchNoteForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            // Get search parameters
+            const tags = document.getElementById('searchTags').value;
+            const title = document.getElementById('searchTitle').value;
+
+            const query = new URLSearchParams();
+            if (tags) query.append('tags', tags);
+            if (title) query.append('title', title);
+
+            try {
+                const response = await fetch(`http://localhost:3000/api/notefilter?${query.toString()}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch filtered notes');
+                }
+
+                const notes = await response.json();
+                const noteList = document.querySelector('#noteList tbody');
+
+                // Clear existing note data
+                noteList.innerHTML = '';
+
+                // Populate table with filtered note data
+                notes.forEach(note => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${note.title}</td>
+                        <td>${note.content}</td>
+                        <td>${note.tags.join(', ')}</td>
+                        <td>${note.owner}</td>
+                    `;
+                    noteList.appendChild(row);
+                });
+
+            } catch (error) {
+                console.error('Error fetching filtered notes:', error);
+            }
+        });
+
+        // Fetch users and notes when the page loads
+        fetchUsers();
+        fetchNotes();
+    </script>
+</body>
+</html>
